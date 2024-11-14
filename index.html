@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="eng">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webcam Recorder</title>
+    <style>
+      /* Previous styles remain the same */
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 70% 30%;
+        gap: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+        height: calc(100vh - 40px);
+      }
+      .container {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .video-container {
+        position: relative;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        height: calc(100% - 80px);
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+        background: #000;
+      }
+      .time {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .countdown {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 48px;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      }
+      .recording-indicator {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        display: flex;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .red-dot {
+        width: 8px;
+        height: 8px;
+        background: red;
+        border-radius: 50%;
+        margin-right: 6px;
+        animation: blink 1s infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .error-message {
+        background: #ff00001a;
+        color: #d60000;
+        padding: 8px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 14px;
+        text-align: center;
+        display: none;
+      }
+      .date-time-overlay {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .input-container {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        align-items: center;
+      }
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        width: 100%;
+        max-width: 300px;
+      }
+      .input-group label {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      .input-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      .input-group input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+      }
+      .success-message {
+        background-color: #4caf50;
+        color: white;
+        padding: 20px;
+        border-radius: 4px;
+        margin-top: 10px;
+        text-align: center;
+        display: none;
+        animation: fadeOut 3s forwards;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      @keyframes fadeOut {
+        0% {
+          opacity: 1;
+        }
+        70% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <div class="container">
+        <div class="video-container">
+          <video id="video" autoplay muted playsinline></video>
+          <div id="currentTime" class="time"></div>
+          <div id="countdown" class="countdown" style="display: none"></div>
+          <div
+            id="recordingIndicator"
+            class="recording-indicator"
+            style="display: none"
+          >
+            <div class="red-dot"></div>
+            <span id="recordingTime">0:00</span>
+          </div>
+          <div id="dateTimeOverlay" class="date-time-overlay">
+            <span id="dateTimeDisplay"></span>
+          </div>
+        </div>
+        <div id="errorMessage" class="error-message"></div>
+      </div>
+
+      <div class="input-container">
+        <div class="input-group">
+          <label>ID</label>
+          <input type="text" id="userId" placeholder="ID raqami" />
+        </div>
+        <div class="input-group">
+          <label>Ism-Familiya</label>
+          <input
+            type="text"
+            id="userName"
+            placeholder="Ism-Familiya"
+            readonly
+          />
+        </div>
+        <div id="successMessage" class="success-message"></div>
+      </div>
+    </div>
+    <script>
+      const video = document.getElementById("video");
+      const currentTimeDisplay = document.getElementById("currentTime");
+      const countdownDisplay = document.getElementById("countdown");
+      const recordingIndicator = document.getElementById("recordingIndicator");
+      const recordingTimeDisplay = document.getElementById("recordingTime");
+      const errorMessage = document.getElementById("errorMessage");
+      const userIdInput = document.getElementById("userId");
+      const userNameInput = document.getElementById("userName");
+      const successMessage = document.getElementById("successMessage");
+
+      let mediaRecorder;
+      let chunks = [];
+      let isRecording = false;
+      let recordingTime = 0;
+      let recordingInterval;
+      let currentStream = null;
+      let inactivityTimeout = null;
+      let lastActivityTime = null;
+
+      const resetInactivityTimer = () => {
+        lastActivityTime = Date.now();
+        clearTimeout(inactivityTimeout);
+        inactivityTimeout = setTimeout(checkInactivity, 10000); // Har 10 sekundda tekshirish
+      };
+
+      const checkInactivity = () => {
+        const currentTime = Date.now();
+        const inactivityDuration = currentTime - lastActivityTime;
+
+        if (inactivityDuration >= 60000) { // 1 daqiqa
+          if (isRecording) {
+            stopRecording();
+            showError("1 daqiqa ichida yangi ID kiritilmagani uchun yozish to'xtatildi");
+          }
+        } else {
+          inactivityTimeout = setTimeout(checkInactivity, 10000);
+        }
+      };
+
+      userIdInput.addEventListener("change", () => {
+        const fullId = userIdInput.value;
+        const idParts = fullId.split("-");
+        
+        if (idParts.length > 1) {
+          userIdInput.value = idParts[0];
+          userNameInput.value = idParts[1].replace(",", " ");
+          showSuccess(`${idParts[1].replace(",", " ")} dan davomat olindi ✅`);
+          
+          if (!isRecording) {
+            startRecording();
+          }
+          
+          resetInactivityTimer();
+          userIdInput.value = "";
+        }
+      });
+
+      const showError = (message) => {
+        errorMessage.textContent = message;
+        errorMessage.style.display = "block";
+        setTimeout(() => {
+          errorMessage.style.display = "none";
+        }, 3000);
+      };
+
+      const showSuccess = (message) => {
+        successMessage.textContent = message;
+        successMessage.style.display = "block";
+        setTimeout(() => {
+          successMessage.style.display = "none";
+        }, 3000);
+      };
+
+      const initializeCamera = async () => {
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 15 },
+            },
+          });
+          video.srcObject = currentStream;
+
+          const updateDateTime = () => {
+            const currentDate = new Date();
+            const options = {
+              weekday: "short",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit"
+            };
+            const dateTimeString = currentDate.toLocaleDateString("uz-UZ", options);
+            document.getElementById("dateTimeDisplay").textContent = dateTimeString;
+          };
+
+          updateDateTime();
+          setInterval(updateDateTime, 1000);
+
+        } catch (error) {
+          showError("Kamera ishlamadi yoki ruhsat berilmadi.");
+        }
+      };
+
+      const startRecording = async () => {
+        if (!currentStream || isRecording) return;
+
+        const countdownDuration = 3;
+        countdownDisplay.textContent = countdownDuration;
+        countdownDisplay.style.display = "block";
+
+        for (let i = countdownDuration; i > 0; i--) {
+          countdownDisplay.textContent = i;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        countdownDisplay.style.display = "none";
+
+        chunks = [];
+        mediaRecorder = new MediaRecorder(currentStream, {
+          mimeType: "video/webm;codecs=vp9",
+          videoBitsPerSecond: 500000,
+        });
+
+        mediaRecorder.ondataavailable = (event) => {
+          chunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const fileName = `recording-${Date.now()}.webm`;
+
+          const downloadLink = document.createElement("a");
+          downloadLink.href = url;
+          downloadLink.download = fileName;
+          downloadLink.click();
+
+          URL.revokeObjectURL(url);
+          recordingIndicator.style.display = "none";
+          userNameInput.value = "";
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordingIndicator.style.display = "flex";
+        recordingInterval = setInterval(updateRecordingTime, 1000);
+        recordingTime = 0;
+        lastActivityTime = Date.now();
+        resetInactivityTimer();
+      };
+
+      const updateRecordingTime = () => {
+        recordingTime++;
+        const minutes = Math.floor(recordingTime / 60)
+          .toString()
+          .padStart(2, "0");
+        const seconds = (recordingTime % 60).toString().padStart(2, "0");
+        recordingTimeDisplay.textContent = `${minutes}:${seconds}`;
+      };
+
+      const stopRecording = () => {
+        if (!isRecording || !mediaRecorder) return;
+
+        mediaRecorder.stop();
+        clearInterval(recordingInterval);
+        clearTimeout(inactivityTimeout);
+        recordingIndicator.style.display = "none";
+        isRecording = false;
+        userIdInput.value = "";
+        userNameInput.value = "";
+      };
+
+      window.addEventListener("load", initializeCamera);
+    </script>
+  </body>
+</html>
